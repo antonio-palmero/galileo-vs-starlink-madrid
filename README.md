@@ -23,16 +23,6 @@ that is why a GNSS receiver always has several of them in view.
 
 *Skyplot: north up, zenith in the centre, horizon at the edge; dashed circle = 10° mask.*
 
-## Roadmap
-
-- [x] **1. Live data**: CelesTrak GP (OMM JSON) for the `GALILEO` and `STARLINK` groups,
-      cached for 2 h (CelesTrak asks users not to poll), 2 satellites per group taken from
-      each constellation's operational shell
-- [x] **2. Propagation**: two-body Kepler orbits over a 24 h window starting *now*
-- [x] **3. Visibility from Madrid**: azimuth/elevation, 10° mask, pass table, plots and
-      `outputs/orbits_web.json` / `.js` for the web viewer
-- [ ] **4. Web page**: interactive 3D globe in real time plus Madrid's sky view
-
 ## Run it
 
 ```bash
