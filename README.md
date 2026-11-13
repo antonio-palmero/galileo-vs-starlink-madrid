@@ -52,3 +52,9 @@ it is more than 2 hours old.
 
 Two-body Keplerian orbits on a spherical Earth. CelesTrak GP records are SGP4 mean
 elements, so this is an educational approximation, not a precise orbit prediction.
+
+## Credits
+
+Orbital data from [CelesTrak](https://celestrak.org). Built on the workshop by **GNSS Academy**, Space Career Week 2026 (#SCW26).
+
+**Author:** Antonio Rodríguez-Palmero Tajuelo, Telecommunications Engineering student at ETSIT-UPM · [LinkedIn](https://www.linkedin.com/in/antonio-rodr%C3%ADguez-palmero-tajuelo-6416802aa/)
