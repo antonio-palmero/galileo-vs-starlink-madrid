@@ -7,6 +7,7 @@
 # cómo se ven desde Madrid.
 #
 # 1. Configuración y datos en directo
+# 2. Propagar las órbitas (ventana de 24 h que empieza ahora)
 #
 # *Modelo: órbita kepleriana de dos cuerpos (como en el taller). Los registros GP
 # son elementos medios de SGP4, así que es una aproximación educativa.*
@@ -15,7 +16,7 @@
 # --- Paso 1: configuración y datos GP en directo de CelesTrak ---
 # Convenios: fechas en UTC (con zona horaria), distancias en km, ángulos en grados.
 import json, math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -114,3 +115,114 @@ print(f"Observer: {OBSERVER['name']} ({OBSERVER['lat_deg']:.4f} N, {OBSERVER['lo
 for s in sats:
     print(f"  {s['GROUP']:<9} {s['OBJECT_NAME']:<25} NORAD {s['NORAD_CAT_ID']:>6}   "
           f"EPOCH {s['EPOCH'][:19]}   mean alt {mean_altitude_km(s):8.1f} km")
+
+# %% [markdown]
+# ## Paso 2 · Propagar las órbitas
+#
+# La ventana empieza **ahora** (redondeado al minuto) y dura 24 h: así lo que
+# calculamos es lo que está pasando en el cielo de Madrid hoy. Cada satélite se
+# propaga desde su propio epoch con el modelo de dos cuerpos del taller (Kepler +
+# rotación de Greenwich). Cuanto más lejos del epoch, más error: en Starlink, tan
+# bajo, el rozamiento con la atmósfera (que este modelo no tiene) lo hace crecer
+# más rápido que en Galileo.
+
+# %%
+# --- Paso 2: propagar las órbitas ---
+if 'sats' not in globals():
+    raise NameError('sats is not defined: run the Step 1 cell first.')
+
+STEP_SECONDS = 10      # 10 s: suficiente para seguir una pasada de Starlink de pocos minutos
+DURATION_HOURS = 24
+J2000 = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)  # epoch de referencia del GMST
+
+
+def parse_gp_elements(rec):
+    """Un registro GP -> elementos de Kepler en unidades del modelo (km, rad, rad/s, fecha UTC)."""
+    n = 2 * math.pi * float(rec['MEAN_MOTION']) / 86400        # rev/día -> rad/s
+    return {
+        'name': rec['OBJECT_NAME'].strip(),
+        'norad_id': int(rec['NORAD_CAT_ID']),
+        'group': rec['GROUP'],
+        'epoch': datetime.fromisoformat(rec['EPOCH'].rstrip('Z')).replace(tzinfo=timezone.utc),
+        'n_rad_s': n,
+        'a_km': (MU_EARTH_KM3_S2 / n**2) ** (1 / 3),            # tercera ley de Kepler
+        'e': float(rec['ECCENTRICITY']),
+        'i_rad': math.radians(float(rec['INCLINATION'])),
+        'raan_rad': math.radians(float(rec['RA_OF_ASC_NODE'])),
+        'argp_rad': math.radians(float(rec['ARG_OF_PERICENTER'])),
+        'M0_rad': math.radians(float(rec['MEAN_ANOMALY'])),
+    }
+
+
+def solve_kepler(M, e, tol=1e-12, max_iter=50):
+    """Resuelve M = E - e*sin(E) para la anomalía excéntrica E (Newton-Raphson)."""
+    E = math.pi if e > 0.8 else M
+    for _ in range(max_iter):
+        dE = (E - e * math.sin(E) - M) / (1 - e * math.cos(E))
+        E -= dE
+        if abs(dE) < tol:
+            return E
+    raise RuntimeError(f'Kepler solver did not converge (M={M}, e={e}).')
+
+
+def gmst_rad(t):
+    """Tiempo sidéreo medio de Greenwich (IAU-1982): ángulo de rotación de la Tierra en rad."""
+    d = (t - J2000).total_seconds() / 86400
+    T = d / 36525
+    return math.radians((280.46061837 + 360.98564736629 * d
+                         + 0.000387933 * T**2 - T**3 / 38710000) % 360)
+
+
+def propagate(el, times):
+    """Dos cuerpos: para cada instante, posición ECEF (km) y lat/lon/alt sobre una Tierra esférica."""
+    a, e, i = el['a_km'], el['e'], el['i_rad']
+    raan, argp = el['raan_rad'], el['argp_rad']
+    points = []
+    for t in times:
+        M = (el['M0_rad'] + el['n_rad_s'] * (t - el['epoch']).total_seconds()) % (2 * math.pi)
+        E = solve_kepler(M, e)
+        r = a * (1 - e * math.cos(E))                                   # radio
+        nu = math.atan2(math.sqrt(1 - e**2) * math.sin(E), math.cos(E) - e)  # anomalía verdadera
+        u = argp + nu                                                   # argumento de latitud
+        # Inercial (ECI): girar el plano de la órbita según RAAN e inclinación
+        x = r * (math.cos(raan) * math.cos(u) - math.sin(raan) * math.sin(u) * math.cos(i))
+        y = r * (math.sin(raan) * math.cos(u) + math.cos(raan) * math.sin(u) * math.cos(i))
+        z = r * math.sin(u) * math.sin(i)
+        # Fija a la Tierra (ECEF): deshacer la rotación de la Tierra
+        th = gmst_rad(t)
+        xf, yf = math.cos(th) * x + math.sin(th) * y, -math.sin(th) * x + math.cos(th) * y
+        points.append({'time': t, 'ecef_km': (xf, yf, z), 'eci_km': (x, y, z),
+                       'lat_deg': math.degrees(math.atan2(z, math.hypot(xf, yf))),
+                       'lon_deg': math.degrees(math.atan2(yf, xf)),
+                       'alt_km': r - EARTH_RADIUS_KM})
+    return points
+
+
+# Comprobaciones del propagador (las mismas que en el taller)
+assert abs(math.degrees(gmst_rad(J2000)) - 280.46) < 0.01, 'GMST at J2000 should be ~280.46 deg'
+for M_test in (0.1, 1.0, 3.0, 5.5):
+    for e_test in (0.0, 0.1, 0.5, 0.9):
+        E_test = solve_kepler(M_test, e_test)
+        assert abs(E_test - e_test * math.sin(E_test) - M_test) < 1e-10, 'Kepler residual too large'
+
+# Ventana: desde ahora (redondeado al minuto) durante DURATION_HOURS
+start = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+end = start + timedelta(hours=DURATION_HOURS)
+n_points = int((end - start).total_seconds()) // STEP_SECONDS + 1
+times = [start + timedelta(seconds=k * STEP_SECONDS) for k in range(n_points)]
+
+elements = [parse_gp_elements(s) for s in sats]
+tracks = [propagate(el, times) for el in elements]
+
+print(f'Window (UTC): {start:%Y-%m-%d %H:%M} -> {end:%Y-%m-%d %H:%M}, step {STEP_SECONDS} s, {n_points} points')
+print(f"{'Satellite':<25} {'Period':>9} {'Perigee':>9} {'Apogee':>9} {'i':>9}  {'Epoch age':>10}")
+for el, pts in zip(elements, tracks):
+    period_h = 2 * math.pi / el['n_rad_s'] / 3600
+    age_h = (start - el['epoch']).total_seconds() / 3600
+    print(f"{el['name']:<25} {period_h:>7.3f} h {el['a_km'] * (1 - el['e']) - EARTH_RADIUS_KM:>6.1f} km "
+          f"{el['a_km'] * (1 + el['e']) - EARTH_RADIUS_KM:>6.1f} km {math.degrees(el['i_rad']):>5.2f} deg"
+          f"{age_h:>8.1f} h")
+    # Comprobación: el periodo coincide con la constelación (Galileo ~14,08 h; Starlink ~1,57 h)
+    expected = {'GALILEO': (14.0, 14.2), 'STARLINK': (1.5, 1.6)}[el['group']]
+    assert expected[0] <= period_h <= expected[1], f"{el['name']}: period {period_h:.3f} h out of {expected}"
+print('Checks passed: GMST, Kepler solver and periods of both constellations.')

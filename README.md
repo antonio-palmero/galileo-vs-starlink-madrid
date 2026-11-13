@@ -15,7 +15,7 @@ sees: how often each one rises, how long it stays above the horizon and how high
 - [x] **1. Live data**: CelesTrak GP (OMM JSON) for the `GALILEO` and `STARLINK` groups,
       cached for 2 h (CelesTrak asks users not to poll), 2 satellites per group taken from
       each constellation's operational shell
-- [ ] **2. Propagation**: two-body Kepler orbits over a 24 h window starting *now*
+- [x] **2. Propagation**: two-body Kepler orbits over a 24 h window starting *now*
 - [ ] **3. Visibility from Madrid**: azimuth/elevation, 10° mask, pass table and plots
 - [ ] **4. Web page**: interactive 3D globe in real time plus Madrid's sky view
 
