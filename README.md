@@ -10,13 +10,26 @@ sees: how often each one rises, how long it stays above the horizon and how high
 > [Satellite Orbit Explorer](https://github.com/antonio-palmero/satellite-orbit-explorer)
 > (Space Career Week 2026 · GNSS Academy).
 
+## What it shows
+
+![Elevation over Madrid](outputs/elevation_madrid.png)
+
+Starlink satellites race across Madrid's sky in **a few minutes**, several times a day,
+and most passes stay low. Galileo satellites move slowly and stay up for **hours**:
+that is why a GNSS receiver always has several of them in view.
+
+![Sky over Madrid](outputs/skyplot_madrid.png)
+
+*Skyplot: north up, zenith in the centre, horizon at the edge; dashed circle = 10° mask.*
+
 ## Roadmap
 
 - [x] **1. Live data**: CelesTrak GP (OMM JSON) for the `GALILEO` and `STARLINK` groups,
       cached for 2 h (CelesTrak asks users not to poll), 2 satellites per group taken from
       each constellation's operational shell
 - [x] **2. Propagation**: two-body Kepler orbits over a 24 h window starting *now*
-- [ ] **3. Visibility from Madrid**: azimuth/elevation, 10° mask, pass table and plots
+- [x] **3. Visibility from Madrid**: azimuth/elevation, 10° mask, pass table, plots and
+      `outputs/orbits_web.json` / `.js` for the web viewer
 - [ ] **4. Web page**: interactive 3D globe in real time plus Madrid's sky view
 
 ## Run it
@@ -25,6 +38,10 @@ sees: how often each one rises, how long it stays above the horizon and how high
 pip install -r requirements.txt
 python galileo_vs_starlink.py
 ```
+
+Outputs (in `outputs/`): `elevation_madrid.png`, `skyplot_madrid.png` and
+`orbits_web.json` / `orbits_web.js` (positions in ECEF and ECI, azimuth/elevation from
+Madrid and the pass list, every 30 s, for the web viewer).
 
 The script is split into `# %%` cells, so it also runs cell by cell in VS Code or Jupyter.
 Downloaded data goes to `data/` (not versioned); it is fetched again automatically when

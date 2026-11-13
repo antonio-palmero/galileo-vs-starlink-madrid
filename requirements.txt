@@ -1,2 +1,3 @@
+matplotlib
 requests
 truststore  # optional: use the OS certificate store (needed if an antivirus inspects HTTPS)
