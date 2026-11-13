@@ -8,7 +8,8 @@ sees: how often each one rises, how long it stays above the horizon and how high
 
 > 🚧 Work in progress. Built step by step on top of my
 > [Satellite Orbit Explorer](https://github.com/antonio-palmero/satellite-orbit-explorer)
-> (Space Career Week 2026 · GNSS Academy).
+> (Space Career Week 2026 · GNSS Academy): it started as that course's optional task
+> (replace the workshop snapshot with live CelesTrak data) and grew into its own project.
 
 ## What it shows
 
